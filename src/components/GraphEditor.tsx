@@ -15,7 +15,9 @@ import React, {
   useEffect,
   ChangeEvent,
 } from "react";
-import ReactFlow, {
+import ReactFlow, { 
+  EdgeProps, 
+  getBezierPath, 
   ReactFlowProvider,
   addEdge,
   applyNodeChanges,
@@ -143,6 +145,23 @@ const GraphNode = ({ id, data, selected }: { id: string; data: NodeData; selecte
 );
 const nodeTypes: NodeTypes = { graphNode: GraphNode };
 
+/* ---------- Edge component ---------- */
+const DefaultEdge = ({ id, sourceX, sourceY, targetX, targetY, data, label }: EdgeProps) => {
+  const [edgePath] = getBezierPath({ sourceX, sourceY, targetX, targetY });
+  return (
+    <g>
+      <path id={id} d={edgePath} stroke="#555" strokeWidth={2} fill="none" />
+      {label && (
+        <text>
+          <textPath href={`#${id}`} startOffset="50%" textAnchor="middle" dominantBaseline="central" fill="#000" fontSize={12}>
+            {label}
+          </textPath>
+        </text>
+      )}
+    </g>
+  );
+};
+
 /* ---------- Estimate helpers ---------- */
 interface SummaryRow { work: string; rate: number; qty: number; sum: number }
 const buildSummary = (nodes: Node<NodeData>[], rates: Record<string, number>, filter: CreateType | null): SummaryRow[] => {
@@ -190,6 +209,7 @@ const SummaryTable = ({ title, rows, onRateChange }: { title: string; rows: Summ
 
 /* ---------- Main Component ---------- */
 export default function GraphEditor() {
+  const [hideBackground, setHideBackground] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null); // ⬅️ Добавлен ref
   const [nodes, setNodes] = useState<Node<NodeData>[]>([
     createChildNode({ id: "root", position: { x: 250, y: 25 } } as Node<NodeData>, "1", 0),
@@ -233,6 +253,8 @@ export default function GraphEditor() {
   }, [isDialogOpen, selectedNodeId]);
 
   const exportImage = async () => {
+    setHideBackground(true);
+    await new Promise((r) => setTimeout(r, 50));
     if (!reactFlowWrapper.current) return;
   
     const flowNode = reactFlowWrapper.current.querySelector(".react-flow") as HTMLElement;
@@ -267,6 +289,12 @@ export default function GraphEditor() {
     flowNode.style.height = `${height}px`;
     flowNode.style.transform = `translate(${-bounds.minX + padding}px, ${-bounds.minY + padding}px)`;
   
+    const edgeLayer = flowNode.querySelector(".react-flow__edges") as HTMLElement;
+    if (edgeLayer) {
+      edgeLayer.style.display = "block";
+      edgeLayer.style.transform = "none";
+    }
+
     const dataUrl = await toPng(flowNode, {
       width,
       height,
@@ -281,6 +309,11 @@ export default function GraphEditor() {
     flowNode.style.width = originalWidth;
     flowNode.style.height = originalHeight;
     flowNode.style.transform = originalTransform;
+    if (edgeLayer) {
+      edgeLayer.style.display = "";
+      edgeLayer.style.transform = "";
+    }
+    setHideBackground(false);
   
     const a = document.createElement("a");
     a.href = dataUrl;
@@ -302,7 +335,12 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
     const newId = `${idCounter.current++}`;
     const newNode = createChildNode(parent as Node<NodeData>, newId);
     setNodes((nds) => [...nds, newNode]);
-    setEdges((eds) => [...eds, { id: `e${parent.id}-${newId}`, source: parent.id, target: newId, type: "straight" }]);
+    setEdges((eds) => [...eds, {
+      id: `e${parent.id}-${newId}`,
+      source: parent.id,
+      target: newId,
+      type: "smoothstep", // SVG-friendly edge for export
+    }]);
   };
   const onNodesChange = useCallback((c: NodeChange[]) => setNodes((nds) => applyNodeChanges(c, nds)), []);
   const onEdgesChange = useCallback((c: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(c, eds)), []);
@@ -344,7 +382,11 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
         console.log("Loaded graph file", data);
         const enrichedNodes = data.nodes.map(n => ({ type: "graphNode", ...n }));
         setNodes(enrichedNodes as any);
-        setEdges(data.edges as any);
+        const enrichedEdges = data.edges.map((e) => ({
+          ...e,
+          type: e.type ?? "smoothstep",
+        }));
+        setEdges(enrichedEdges as any);
         setRates(data.rates || DEFAULT_RATES);
         idCounter.current = data.nodes.length + 1;
       } catch (err) {
@@ -379,6 +421,7 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
           <div ref={reactFlowWrapper} className="w-full h-full">
               <ReactFlow
                 nodes={nodes}
+                edgeTypes={{ default: DefaultEdge, smoothstep: DefaultEdge }}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
@@ -391,7 +434,7 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
                 onEdgeDoubleClick={onEdgeDoubleClick}
                 className="w-full h-full"
               >
-                <Background gap={16} />
+                {!hideBackground && <Background gap={16} />}
                 <Controls />
               </ReactFlow>
             </div>
