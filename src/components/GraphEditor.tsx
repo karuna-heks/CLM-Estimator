@@ -164,14 +164,27 @@ const DefaultEdge = ({ id, sourceX, sourceY, targetX, targetY, data, label }: Ed
 
 /* ---------- Estimate helpers ---------- */
 interface SummaryRow { work: string; rate: number; qty: number; sum: number }
-const buildSummary = (nodes: Node<NodeData>[], rates: Record<string, number>, filter: CreateType | null): SummaryRow[] => {
+const buildSummary = (
+  nodes: Node<NodeData>[],
+  rates: Record<string, number>,
+  filter: CreateType | null,
+  uploadingOnly = false
+): SummaryRow[] => {
+  if (uploadingOnly) {
+    const count = nodes.filter((n) => n.data.uploading === "yes").length;
+    return [{ work: "Uploading", rate: 0, qty: count, sum: 0 }];
+  }
+
   const counts: Record<string, number> = Object.fromEntries(WORK_TYPES.map((k) => [k, 0]));
   nodes.forEach(({ data }) => {
+    if (data.uploading === "yes") return; // ← исключаем uploading-узлы
     if (!filter || data.designType === filter) counts[`Design-${data.designDifficulty}`] += 1;
     if (!filter || data.codingType === filter) counts[`Coding-${data.codingDifficulty}`] += 1;
   });
   return WORK_TYPES.map((wt) => ({ work: wt, rate: rates[wt], qty: counts[wt], sum: counts[wt] * rates[wt] }));
 };
+
+
 const SummaryTable = ({ title, rows, onRateChange }: { title: string; rows: SummaryRow[]; onRateChange: (work: string, v: number) => void }) => {
   const total = rows.reduce((a, r) => a + r.sum, 0);
   return (
@@ -229,6 +242,7 @@ export default function GraphEditor() {
   const selectedNode = useMemo(() => nodes.find((n) => n.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
   const newSummary = useMemo(() => buildSummary(nodes, rates, "new"), [nodes, rates]);
   const adaptSummary = useMemo(() => buildSummary(nodes, rates, "adapt"), [nodes, rates]);
+  const uploadingSummary = useMemo(() => buildSummary(nodes, rates, null, true), [nodes, rates]);
 
   /* --- Effects --- */
   useEffect(() => { if (selectedNode) setFormState({ ...selectedNode.data }); }, [selectedNode]);
@@ -448,6 +462,7 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
         <TabsContent value="estimate" className="flex-1 overflow-y-auto p-4">
           <SummaryTable title="Новая разработка" rows={newSummary} onRateChange={handleRateChange} />
           <SummaryTable title="Адаптация" rows={adaptSummary} onRateChange={handleRateChange} />
+          <SummaryTable title="Uploading" rows={uploadingSummary} onRateChange={handleRateChange} />
         </TabsContent>
       </Tabs>
 
