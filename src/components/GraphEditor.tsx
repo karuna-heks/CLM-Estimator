@@ -324,11 +324,44 @@ export default function GraphEditor() {
     if (edgeLayer) edgeLayer.style.transform = "none";
   
     /* 5️⃣  экспорт  */
+    const watermark = document.createElement("div");
+    watermark.style.position = "absolute";
+    watermark.style.right = "32px";
+    watermark.style.bottom = "32px";
+    watermark.style.display = "flex";
+    watermark.style.alignItems = "center";
+    watermark.style.gap = "8px";
+    watermark.style.fontSize = "14px";
+    watermark.style.fontFamily = "sans-serif";
+    watermark.style.opacity = "0.6";
+    watermark.style.color = "#000";
+
+    const img = document.createElement("img");
+    const logoBlob = await fetch("/company-logo.png").then(res => res.blob());
+    const logoDataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(logoBlob);
+    });
+    img.src = logoDataUrl;
+    img.style.height = "96px";
+    img.style.display = "inline-block";
+
+    // const text = document.createElement("span");
+    // text.textContent = projectName;
+
+    watermark.appendChild(img);
+    // watermark.appendChild(text);
+    flowRoot.appendChild(watermark);
+
     const png = await toPng(flowRoot, {
       width: fullW,
       height: fullH,
       backgroundColor: "white",
     });
+
+    flowRoot.removeChild(watermark);
+    
   
     /* 6️⃣  откат всех стилей  */
     flowRoot.style.width = css.w;
