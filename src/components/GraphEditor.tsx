@@ -255,71 +255,76 @@ export default function GraphEditor() {
   const exportImage = async () => {
     setHideBackground(true);
     await new Promise((r) => setTimeout(r, 50));
+  
     if (!reactFlowWrapper.current) return;
+    const flowRoot = reactFlowWrapper.current.querySelector(
+      ".react-flow"
+    ) as HTMLElement;
+    if (!flowRoot) return;
   
-    const flowNode = reactFlowWrapper.current.querySelector(".react-flow") as HTMLElement;
-    if (!flowNode) return;
-  
-    const bounds = nodes.reduce(
-      (acc, node) => {
-        const { x, y } = node.position;
-        const width = node.width ?? 250;
-        const height = node.height ?? 150;
+    /* 1️⃣ вычисляем реальные границы по узлам  */
+    const b = nodes.reduce(
+      (acc, n) => {
+        const w = n.width ?? 250;
+        const h = n.height ?? 150;
         return {
-          minX: Math.min(acc.minX, x),
-          minY: Math.min(acc.minY, y),
-          maxX: Math.max(acc.maxX, x + width),
-          maxY: Math.max(acc.maxY, y + height),
+          minX: Math.min(acc.minX, n.position.x),
+          minY: Math.min(acc.minY, n.position.y),
+          maxX: Math.max(acc.maxX, n.position.x + w),
+          maxY: Math.max(acc.maxY, n.position.y + h),
         };
       },
       { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
     );
   
-    const padding = 64;
-    const width = bounds.maxX - bounds.minX + padding * 2;
-    const height = bounds.maxY - bounds.minY + padding * 2;
+    /*  —  небольшой отступ  */
+    const PAD = 64;
+    const fullW = b.maxX - b.minX + PAD * 2;
+    const fullH = b.maxY - b.minY + PAD * 2;
   
-    // Сохраняем оригинальные стили
-    const originalWidth = flowNode.style.width;
-    const originalHeight = flowNode.style.height;
-    const originalTransform = flowNode.style.transform;
+    /* 2️⃣  сохраняем исходные стили контейнера  */
+    const css = {
+      w: flowRoot.style.width,
+      h: flowRoot.style.height,
+      tf: flowRoot.style.transform,
+    };
+    const vp = flowRoot.querySelector(
+      ".react-flow__viewport"
+    ) as HTMLElement | null;
+    const vpOrigTf = vp?.style.transform ?? null;
   
-    // Подстраиваем под экспорт
-    flowNode.style.width = `${width}px`;
-    flowNode.style.height = `${height}px`;
-    flowNode.style.transform = `translate(${-bounds.minX + padding}px, ${-bounds.minY + padding}px)`;
+    /* 3️⃣  полностью убираем transform и задаём явный size  */
+    flowRoot.style.width = `${fullW}px`;
+    flowRoot.style.height = `${fullH}px`;
+    flowRoot.style.transform = "translate(0,0)";
+    if (vp) vp.style.transform = `translate(${-b.minX + PAD}px,${-b.minY + PAD}px) scale(1)`;
   
-    const edgeLayer = flowNode.querySelector(".react-flow__edges") as HTMLElement;
-    if (edgeLayer) {
-      edgeLayer.style.display = "block";
-      edgeLayer.style.transform = "none";
-    }
-
-    const dataUrl = await toPng(flowNode, {
-      width,
-      height,
+    /* 4️⃣  фон + слой рёбер  */
+    const edgeLayer = flowRoot.querySelector(".react-flow__edges") as HTMLElement | null;
+    if (edgeLayer) edgeLayer.style.transform = "none";
+  
+    /* 5️⃣  экспорт  */
+    const png = await toPng(flowRoot, {
+      width: fullW,
+      height: fullH,
       backgroundColor: "white",
-      style: {
-        width: `${width}px`,
-        height: `${height}px`,
-      },
     });
   
-    // Откат
-    flowNode.style.width = originalWidth;
-    flowNode.style.height = originalHeight;
-    flowNode.style.transform = originalTransform;
-    if (edgeLayer) {
-      edgeLayer.style.display = "";
-      edgeLayer.style.transform = "";
-    }
+    /* 6️⃣  откат всех стилей  */
+    flowRoot.style.width = css.w;
+    flowRoot.style.height = css.h;
+    flowRoot.style.transform = css.tf;
+    if (vp && vpOrigTf !== null) vp.style.transform = vpOrigTf;
+    if (edgeLayer) edgeLayer.style.transform = "";
+  
     setHideBackground(false);
   
     const a = document.createElement("a");
-    a.href = dataUrl;
+    a.href = png;
     a.download = "graph.png";
     a.click();
   };
+  
   
 
   /* --- Graph events --- */
