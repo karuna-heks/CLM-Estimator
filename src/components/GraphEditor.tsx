@@ -49,9 +49,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table } from "@/components/ui/table";
   
 /* ---------- Types ---------- */
-export type Difficulty = "simple" | "medium" | "complex";
+export type Difficulty = "none" | "simple" | "medium" | "complex";
 export type YesNo = "yes" | "no";
-export type CreateType = "new" | "adapt";
+export type CreateType = "none" | "new" | "adapt";
   
 export interface NodeData {
   label: string;
@@ -177,9 +177,13 @@ const buildSummary = (
 
   const counts: Record<string, number> = Object.fromEntries(WORK_TYPES.map((k) => [k, 0]));
   nodes.forEach(({ data }) => {
-    if (data.uploading === "yes") return; // ← исключаем uploading-узлы
-    if (!filter || data.designType === filter) counts[`Design-${data.designDifficulty}`] += 1;
-    if (!filter || data.codingType === filter) counts[`Coding-${data.codingDifficulty}`] += 1;
+    if (data.uploading === "yes") return;
+    if (data.designType !== "none" && (!filter || data.designType === filter)) {
+      counts[`Design-${data.designDifficulty}`] += 1;
+    }
+    if (data.codingType !== "none" && (!filter || data.codingType === filter)) {
+      counts[`Coding-${data.codingDifficulty}`] += 1;
+    }
   });
   return WORK_TYPES.map((wt) => ({ work: wt, rate: rates[wt], qty: counts[wt], sum: counts[wt] * rates[wt] }));
 };
@@ -490,44 +494,115 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
             {/* Uploading */}
             <div>
               <label className="text-sm font-medium">Uploading</label>
-              <Select value={formState.uploading} onValueChange={(v: YesNo) => setFormState((s) => ({ ...s, uploading: v }))}>
+              <Select value={formState.uploading} onValueChange={(v: YesNo) => {
+                if (v === "yes") {
+                  setFormState((s) => ({
+                    ...s,
+                    uploading: v,
+                    designType: "none",
+                    designDifficulty: "none",
+                    codingType: "none",
+                    codingDifficulty: "none",
+                  }));
+                } else {
+                  setFormState((s) => ({ ...s, uploading: v }));
+                }
+              }}>
                 <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                 <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent>
               </Select>
             </div>
             {/* Design / Coding props */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className={formState.uploading === "yes" ? "opacity-50 pointer-events-none" : ""}>
                 <label className="text-sm font-medium">Design Type</label>
-                <Select value={formState.designType} onValueChange={(v: CreateType) => setFormState((s) => ({ ...s, designType: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent><SelectItem value="new">New</SelectItem><SelectItem value="adapt">Adapt</SelectItem></SelectContent>
+                <Select
+                  value={formState.designType}
+                  disabled={formState.uploading === "yes"}
+                  onValueChange={(v: CreateType) => {
+                    const isUploading = formState.uploading === "yes";
+                    setFormState((s) => ({
+                      ...s,
+                      designType: v,
+                      designDifficulty: v === "none" || isUploading ? "none" : s.designDifficulty,
+                    }));
+                  }}
+                >
+                  <SelectTrigger disabled={formState.uploading === "yes"}><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="adapt">Adapt</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className={(formState.designType === "none" || formState.uploading === "yes") ? "opacity-50 pointer-events-none" : ""}>
                 <label className="text-sm font-medium">Design Difficulty</label>
-                <Select value={formState.designDifficulty} onValueChange={(v: Difficulty) => setFormState((s) => ({ ...s, designDifficulty: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent><SelectItem value="simple">Simple</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="complex">Complex</SelectItem></SelectContent>
+                <Select
+                  value={formState.designDifficulty}
+                  disabled={formState.designType === "none" || formState.uploading === "yes"}
+                  onValueChange={(v: Difficulty) =>
+                    formState.designType !== "none" &&
+                    formState.uploading !== "yes" &&
+                    setFormState((s) => ({ ...s, designDifficulty: v }))
+                  }
+                >
+                  <SelectTrigger disabled={formState.designType === "none" || formState.uploading === "yes"}><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="simple">Simple</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="complex">Complex</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
-              <div>
+              <div className={formState.uploading === "yes" ? "opacity-50 pointer-events-none" : ""}>
                 <label className="text-sm font-medium">Coding Type</label>
-                <Select value={formState.codingType} onValueChange={(v: CreateType) => setFormState((s) => ({ ...s, codingType: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent><SelectItem value="new">New</SelectItem><SelectItem value="adapt">Adapt</SelectItem></SelectContent>
+                <Select
+                  value={formState.codingType}
+                  disabled={formState.uploading === "yes"}
+                  onValueChange={(v: CreateType) => {
+                    const isUploading = formState.uploading === "yes";
+                    setFormState((s) => ({
+                      ...s,
+                      codingType: v,
+                      codingDifficulty: v === "none" || isUploading ? "none" : s.codingDifficulty,
+                    }));
+                  }}
+                >
+                  <SelectTrigger disabled={formState.uploading === "yes"}><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="adapt">Adapt</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className={(formState.codingType === "none" || formState.uploading === "yes") ? "opacity-50 pointer-events-none" : ""}>
                 <label className="text-sm font-medium">Coding Difficulty</label>
-                <Select value={formState.codingDifficulty} onValueChange={(v: Difficulty) => setFormState((s) => ({ ...s, codingDifficulty: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent><SelectItem value="simple">Simple</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="complex">Complex</SelectItem></SelectContent>
+                <Select
+                  value={formState.codingDifficulty}
+                  disabled={formState.codingType === "none" || formState.uploading === "yes"}
+                  onValueChange={(v: Difficulty) =>
+                    formState.codingType !== "none" &&
+                    formState.uploading !== "yes" &&
+                    setFormState((s) => ({ ...s, codingDifficulty: v }))
+                  }
+                >
+                  <SelectTrigger disabled={formState.codingType === "none" || formState.uploading === "yes"}><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="simple">Simple</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="complex">Complex</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
+
           </div>
           <DialogFooter><Button onClick={saveNode}>Save</Button></DialogFooter>
         </DialogContent>
