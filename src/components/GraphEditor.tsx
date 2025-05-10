@@ -238,36 +238,49 @@ export default function GraphEditor() {
     const flowNode = reactFlowWrapper.current.querySelector(".react-flow") as HTMLElement;
     if (!flowNode) return;
   
-    const bounds = document.querySelector(".react-flow__renderer")?.getBoundingClientRect();
-    const viewport = document.querySelector(".react-flow__viewport") as HTMLElement;
+    const bounds = nodes.reduce(
+      (acc, node) => {
+        const { x, y } = node.position;
+        const width = node.width ?? 250;
+        const height = node.height ?? 150;
+        return {
+          minX: Math.min(acc.minX, x),
+          minY: Math.min(acc.minY, y),
+          maxX: Math.max(acc.maxX, x + width),
+          maxY: Math.max(acc.maxY, y + height),
+        };
+      },
+      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+    );
   
-    const rfInstance = (window as any).__REACT_FLOW_DEVTOOLS_GLOBAL_HOOK__?.reactFlowInstances?.[0]?.store?.getState?.();
-    if (!rfInstance) return;
+    const padding = 64;
+    const width = bounds.maxX - bounds.minX + padding * 2;
+    const height = bounds.maxY - bounds.minY + padding * 2;
   
-    const { x, y, width, height } = rfInstance.getNodesBounds();
+    // Сохраняем оригинальные стили
+    const originalWidth = flowNode.style.width;
+    const originalHeight = flowNode.style.height;
+    const originalTransform = flowNode.style.transform;
   
-    const canvas = document.createElement("div");
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    canvas.style.position = "absolute";
-    canvas.style.top = `${-y}px`;
-    canvas.style.left = `${-x}px`;
-    canvas.style.pointerEvents = "none";
-    canvas.style.overflow = "visible";
-    canvas.appendChild(flowNode.cloneNode(true));
+    // Подстраиваем под экспорт
+    flowNode.style.width = `${width}px`;
+    flowNode.style.height = `${height}px`;
+    flowNode.style.transform = `translate(${-bounds.minX + padding}px, ${-bounds.minY + padding}px)`;
   
-    document.body.appendChild(canvas);
-  
-    const dataUrl = await toPng(canvas, {
+    const dataUrl = await toPng(flowNode, {
       width,
       height,
+      backgroundColor: "white",
       style: {
         width: `${width}px`,
         height: `${height}px`,
       },
     });
   
-    document.body.removeChild(canvas);
+    // Откат
+    flowNode.style.width = originalWidth;
+    flowNode.style.height = originalHeight;
+    flowNode.style.transform = originalTransform;
   
     const a = document.createElement("a");
     a.href = dataUrl;
@@ -275,7 +288,7 @@ export default function GraphEditor() {
     a.click();
   };
   
-  
+
   /* --- Graph events --- */
   const onNodeClick = (_: React.MouseEvent, node: Node) => {
   setSelectedNodeId(node.id);
