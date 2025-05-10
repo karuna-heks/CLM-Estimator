@@ -74,6 +74,7 @@ interface PersistEdge {
 }
   
 interface PersistFile {
+  name: string;
   nodes: Array<{ id: string; position: { x: number; y: number }; data: NodeData }>;
   edges: PersistEdge[];
   rates: Record<string, number>;
@@ -227,6 +228,7 @@ const SummaryTable = ({ title, rows, onRateChange }: { title: string; rows: Summ
 /* ---------- Main Component ---------- */
 export default function GraphEditor() {
   const [hideBackground, setHideBackground] = useState(false);
+  const [projectName, setProjectName] = useState("Untitled Project");
   const reactFlowWrapper = useRef<HTMLDivElement>(null); // ⬅️ Добавлен ref
   const [nodes, setNodes] = useState<Node<NodeData>[]>([
     createChildNode({ id: "root", position: { x: 250, y: 25 } } as Node<NodeData>, "1", 0),
@@ -385,9 +387,18 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
   };
 
   const handleSave = () => {
-    const payload: PersistFile = {
+    const payload: PersistFile & { name?: string } = {
+      name: projectName,
       nodes: nodes.map(({ id, position, data }) => ({ id, position, data })),
-      edges: edges.map(({ id, source, target, type }) => ({ id, source, target, type })),
+      edges: edges.map(({ id, source, target, type, data, label }) => ({
+        id,
+        source,
+        target,
+        type,
+        data,
+        label: typeof label === "string" ? label : label?.toString() ?? "",
+      })),
+      
       rates,
     };
     downloadJSON(payload, "graph.json");
@@ -411,6 +422,7 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
         }));
         setEdges(enrichedEdges as any);
         setRates(data.rates || DEFAULT_RATES);
+        if ('name' in data) setProjectName(data.name);
         idCounter.current = data.nodes.length + 1;
       } catch (err) {
         console.error("Invalid file", err);
@@ -429,7 +441,13 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
   return (
     <ReactFlowProvider>
       <Tabs defaultValue="graph" className="w-full h-screen flex flex-col">
-        <TabsList className="p-2 bg-gray-50 border-b">
+        <div className="flex items-center gap-4 p-2 bg-gray-50 border-b">
+          <Input
+            className="w-64"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="Project name"
+          />
           <TabsTrigger value="graph">Graph</TabsTrigger>
           <TabsTrigger value="estimate">Estimate</TabsTrigger>
           <div className="ml-auto flex gap-2">
@@ -438,7 +456,7 @@ const onNodeDoubleClick = (_: React.MouseEvent, node: Node) => {
             <Button size="sm" variant="secondary" onClick={exportImage}>Export PNG</Button>
             <Button size="sm" onClick={addNode}>Add Node</Button>
           </div>
-        </TabsList>
+        </div>
 
         <TabsContent value="graph" className="flex-1">
           <div ref={reactFlowWrapper} className="w-full h-full">
